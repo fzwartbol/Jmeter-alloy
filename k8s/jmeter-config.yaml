@@ -1,0 +1,44 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: jmeter-config
+  namespace: jmeter-live
+data:
+  user.properties: |
+    jmeter.save.saveservice.output_format=csv
+    jmeter.save.saveservice.default_delimiter=\t
+    jmeter.save.saveservice.print_field_names=true
+    jmeter.save.saveservice.timestamp_format=ms
+    jmeter.save.saveservice.autoflush=true
+  alloy-sidecar.alloy: |
+    loki.source.file "jmeter" {
+      targets = [{
+        __path__ = "/results/results.jtl",
+        job = "jmeter",
+      }]
+      forward_to = [loki.process.jmeter.receiver]
+    }
+
+    loki.process "jmeter" {
+      forward_to = [loki.write.central.receiver]
+      stage.drop { expression = "^timeStamp" }
+      stage.regex {
+        expression = "^(?P<ts>\\d+)\\t(?P<elapsed>\\d+)\\t(?P<label>[^\\t]*)\\t(?P<code>[^\\t]*)\\t[^\\t]*\\t[^\\t]*\\t[^\\t]*\\t(?P<success>true|false)\\t[^\\t]*\\t(?P<bytes>\\d+)"
+      }
+      stage.timestamp {
+        source = "ts"
+        format = "UnixMs"
+      }
+      stage.labels {
+        values = { job = "jmeter", label = "", success = "", code = "" }
+      }
+      stage.structured_metadata {
+        values = { elapsed = "", bytes = "" }
+      }
+    }
+
+    loki.write "central" {
+      endpoint {
+        url = "http://central-alloy:9999/loki/api/v1/push"
+      }
+    }
