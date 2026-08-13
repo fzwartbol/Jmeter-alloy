@@ -1,0 +1,109 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasource
+  namespace: jmeter-live
+data:
+  datasource.yaml: |
+    apiVersion: 1
+    datasources:
+      - name: Loki
+        type: loki
+        access: proxy
+        url: http://loki:3100
+        isDefault: true
+        jsonData:
+          maxLines: 5000
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard-provider
+  namespace: jmeter-live
+data:
+  provider.yaml: |
+    apiVersion: 1
+    providers:
+      - name: jmeter
+        type: file
+        disableDeletion: true
+        updateIntervalSeconds: 10
+        options:
+          path: /var/lib/grafana/dashboards
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-dashboard
+  namespace: jmeter-live
+data:
+  jmeter.json: |
+    {
+      "title": "JMeter Live Results",
+      "uid": "jmeter-live",
+      "schemaVersion": 39,
+      "refresh": "5s",
+      "time": {"from": "now-5m", "to": "now"},
+      "panels": [
+        {"type":"timeseries","title":"Requests/sec","gridPos":{"h":8,"w":12,"x":0,"y":0},"datasource":{"type":"loki","uid":"${DS_LOKI}"},"targets":[{"refId":"A","expr":"sum by (label) (rate({job=\"jmeter\"}[30s]))","queryType":"range"}]},
+        {"type":"timeseries","title":"Error rate %","gridPos":{"h":8,"w":12,"x":12,"y":0},"datasource":{"type":"loki","uid":"${DS_LOKI}"},"targets":[{"refId":"A","expr":"sum(rate({job=\"jmeter\", success=\"false\"}[30s])) / sum(rate({job=\"jmeter\"}[30s])) * 100","queryType":"range"}]},
+        {"type":"timeseries","title":"P95 response time (ms)","gridPos":{"h":8,"w":12,"x":0,"y":8},"datasource":{"type":"loki","uid":"${DS_LOKI}"},"targets":[{"refId":"A","expr":"quantile_over_time(0.95, {job=\"jmeter\"} | unwrap elapsed [30s])","queryType":"range"}]},
+        {"type":"timeseries","title":"P99 response time (ms)","gridPos":{"h":8,"w":12,"x":12,"y":8},"datasource":{"type":"loki","uid":"${DS_LOKI}"},"targets":[{"refId":"A","expr":"quantile_over_time(0.99, {job=\"jmeter\"} | unwrap elapsed [30s])","queryType":"range"}]}
+      ],
+      "templating":{"list":[]}
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: grafana
+  namespace: jmeter-live
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: grafana
+  template:
+    metadata:
+      labels:
+        app: grafana
+    spec:
+      containers:
+        - name: grafana
+          image: grafana/grafana:12.1.0
+          ports:
+            - containerPort: 3000
+          env:
+            - name: GF_AUTH_ANONYMOUS_ENABLED
+              value: "true"
+            - name: GF_AUTH_ANONYMOUS_ORG_ROLE
+              value: Admin
+          volumeMounts:
+            - name: datasource
+              mountPath: /etc/grafana/provisioning/datasources
+            - name: provider
+              mountPath: /etc/grafana/provisioning/dashboards
+            - name: dashboard
+              mountPath: /var/lib/grafana/dashboards
+      volumes:
+        - name: datasource
+          configMap:
+            name: grafana-datasource
+        - name: provider
+          configMap:
+            name: grafana-dashboard-provider
+        - name: dashboard
+          configMap:
+            name: grafana-dashboard
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: grafana
+  namespace: jmeter-live
+spec:
+  selector:
+    app: grafana
+  ports:
+    - port: 3000
+      targetPort: 3000
