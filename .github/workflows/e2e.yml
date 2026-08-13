@@ -1,0 +1,47 @@
+name: Kubernetes E2E
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+        with:
+          version: v0.32.0
+          node_image: kindest/node:v1.35.0
+          cluster_name: jmeter-e2e
+          wait: 120s
+
+      - name: Verify cluster
+        run: kubectl cluster-info
+
+      - name: Deploy application
+        run: ./deploy.sh
+
+      - name: Run E2E test
+        run: ./tests/e2e.sh
+
+      - name: Dump Kubernetes diagnostics on failure
+        if: failure()
+        run: |
+          kubectl get pods -A -o wide || true
+          kubectl get events -n jmeter-live --sort-by=.lastTimestamp || true
+          kubectl describe pods -n jmeter-live || true
+          kubectl logs -n jmeter-live deployment/alloy-central --all-containers=true || true
+          kubectl logs -n jmeter-live deployment/loki --all-containers=true || true
+          kubectl logs -n jmeter-live deployment/test-app --all-containers=true || true
+          kubectl logs -n jmeter-live job/jmeter-load -c jmeter || true
+          kubectl logs -n jmeter-live job/jmeter-load -c alloy || true
