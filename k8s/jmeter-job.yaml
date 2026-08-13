@@ -1,0 +1,50 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jmeter-load
+  namespace: jmeter-live
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: jmeter
+    spec:
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: alloy
+          image: grafana/alloy:v1.9.0
+          restartPolicy: Always
+          args: ["run", "--storage.path=/tmp/alloy", "/etc/alloy/config.alloy"]
+          volumeMounts:
+            - name: results
+              mountPath: /results
+              readOnly: true
+            - name: config
+              mountPath: /etc/alloy
+      containers:
+        - name: jmeter
+          image: justb4/jmeter:5.6.3
+          command: ["jmeter"]
+          args:
+            - -n
+            - -q
+            - /config/user.properties
+            - -t
+            - /config/test-plan.jmx
+            - -JTARGET_HOST=test-app
+            - -l
+            - /results/results.jtl
+          volumeMounts:
+            - name: results
+              mountPath: /results
+            - name: config
+              mountPath: /config
+      volumes:
+        - name: results
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: jmeter-config
