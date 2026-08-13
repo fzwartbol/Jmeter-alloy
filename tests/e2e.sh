@@ -23,7 +23,7 @@ kubectl -n "$NAMESPACE" rollout status deployment/loki --timeout=120s
 
 echo "Starting JMeter..."
 kubectl -n "$NAMESPACE" delete job "$JOB" --ignore-not-found=true >/dev/null
-kubectl -n "$NAMESPACE" create -f k8s/jmeter-job.yaml
+kubectl -n "$NAMESPACE" create -f k8s/jmeter-run.yaml
 
 kubectl -n "$NAMESPACE" port-forward svc/loki "$LOCAL_PORT":3100 >/tmp/jmeter-loki-port-forward.log 2>&1 &
 PF_PID=$!
@@ -33,39 +33,53 @@ query() {
   curl -fsS --get "http://127.0.0.1:${LOCAL_PORT}/loki/api/v1/query" --data-urlencode "query=$1"
 }
 
+wait_for_samples() {
+  local query_string="$1"
+  for _ in $(seq 1 90); do
+    if response=$(query "$query_string" 2>/dev/null) \
+      && [[ "$response" == *'"result"'* ]] \
+      && [[ "$response" != *'"result":[]'* ]]; then
+      printf '%s' "$response"
+      return 0
+    fi
+    sleep 1
+  done
+  return 1
+}
+
 echo "Waiting for JMeter samples in Loki..."
-for _ in $(seq 1 60); do
-  if response=$(query '{job="jmeter"}' 2>/dev/null) && [[ "$response" == *"result"* ]] && [[ "$response" != *'"result":[]'* ]]; then
-    echo "JMeter samples found in Loki."
-    break
-  fi
-  sleep 1
-done
-
-response=$(query '{job="jmeter"}')
-if [[ "$response" == *'"result":[]'* ]]; then
-  echo "ERROR: no JMeter samples found in Loki" >&2
+if ! response=$(wait_for_samples '{job="jmeter"}'); then
+  echo "ERROR: no JMeter samples found in Loki within 90s" >&2
+  echo "Loki port-forward log:" >&2
+  cat /tmp/jmeter-loki-port-forward.log >&2 || true
   exit 1
 fi
 
-if [[ "$response" != *'"success"'* ]]; then
-  echo "ERROR: success label not found" >&2
+echo "JMeter samples found in Loki."
+
+if [[ "$response" != *'"success":"true"'* ]]; then
+  echo "ERROR: expected success=true label not found" >&2
   exit 1
 fi
 
-if [[ "$response" != *'"label"'* ]]; then
-  echo "ERROR: label not found" >&2
+if [[ "$response" != *'"code":"200"'* ]]; then
+  echo "ERROR: expected code=200 label not found" >&2
   exit 1
 fi
 
-metadata_query='{job="jmeter"} | unwrap elapsed'
-if ! query "$metadata_query" >/tmp/jmeter-loki-metadata.json 2>/dev/null; then
-  echo "ERROR: elapsed cannot be queried/unwrapped" >&2
+if [[ "$response" != *'"label":"GET /api/test"'* ]]; then
+  echo "ERROR: expected label=GET /api/test label not found" >&2
   exit 1
 fi
 
-if ! grep -q 'result' /tmp/jmeter-loki-metadata.json; then
-  echo "ERROR: elapsed query returned no result structure" >&2
+metadata_query='{job="jmeter"} | unwrap elapsed | sum_over_time([5m])'
+if ! metadata_response=$(query "$metadata_query" 2>/dev/null); then
+  echo "ERROR: elapsed structured metadata cannot be queried" >&2
+  exit 1
+fi
+
+if [[ "$metadata_response" == *'"result":[]'* ]]; then
+  echo "ERROR: elapsed query returned no samples" >&2
   exit 1
 fi
 
