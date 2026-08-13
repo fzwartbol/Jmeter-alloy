@@ -1,0 +1,67 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: alloy-central-config
+  namespace: jmeter-live
+data:
+  config.alloy: |
+    loki.source.api "jmeter" {
+      http {
+        listen_address = "0.0.0.0"
+        listen_port = 9999
+      }
+      forward_to = [loki.write.loki.receiver]
+    }
+
+    loki.write "loki" {
+      endpoint {
+        url = "http://loki:3100/loki/api/v1/push"
+      }
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: alloy-central
+  namespace: jmeter-live
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: alloy-central
+  template:
+    metadata:
+      labels:
+        app: alloy-central
+    spec:
+      containers:
+        - name: alloy
+          image: grafana/alloy:v1.9.0
+          args: ["run", "--storage.path=/tmp/alloy", "/etc/alloy/config.alloy"]
+          ports:
+            - containerPort: 9999
+          readinessProbe:
+            tcpSocket:
+              port: 9999
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: config
+              mountPath: /etc/alloy
+      volumes:
+        - name: config
+          configMap:
+            name: alloy-central-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: central-alloy
+  namespace: jmeter-live
+spec:
+  selector:
+    app: alloy-central
+  ports:
+    - name: loki-push
+      port: 9999
+      targetPort: 9999
