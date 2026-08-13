@@ -1,0 +1,65 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: jmeter-load
+  namespace: jmeter-live
+spec:
+  backoffLimit: 0
+  template:
+    metadata:
+      labels:
+        app: jmeter
+    spec:
+      restartPolicy: Never
+      securityContext:
+        fsGroup: 1000
+      initContainers:
+        - name: alloy
+          image: grafana/alloy:v1.9.0
+          restartPolicy: Always
+          args: ["run", "--storage.path=/tmp/alloy", "/etc/alloy/config.alloy"]
+          volumeMounts:
+            - name: results
+              mountPath: /results
+              readOnly: true
+            - name: config
+              mountPath: /etc/alloy
+        - name: prepare-test-plan
+          image: busybox:1.36
+          command: ["sh", "-c"]
+          args:
+            - >-
+              wget -q -O /plan/test-plan.b64
+              https://raw.githubusercontent.com/fzwartbol/Jmeter-alloy/main/k8s/jmeter-plan.b64
+              && base64 -d /plan/test-plan.b64 > /plan/test-plan.jmx
+          volumeMounts:
+            - name: plan
+              mountPath: /plan
+      containers:
+        - name: jmeter
+          image: justb4/jmeter:5.6.3
+          command: ["jmeter"]
+          args:
+            - -n
+            - -q
+            - /config/user.properties
+            - -t
+            - /plan/test-plan.jmx
+            - -JTARGET_HOST=test-app
+            - -l
+            - /results/results.jtl
+          volumeMounts:
+            - name: results
+              mountPath: /results
+            - name: config
+              mountPath: /config
+            - name: plan
+              mountPath: /plan
+      volumes:
+        - name: results
+          emptyDir: {}
+        - name: plan
+          emptyDir: {}
+        - name: config
+          configMap:
+            name: jmeter-config
