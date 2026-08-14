@@ -7,8 +7,9 @@ kubectl apply -f k8s/alloy-central.yaml
 kubectl apply -f k8s/grafana.yaml
 kubectl apply -f k8s/test-app.yaml
 kubectl apply -f k8s/jmeter-config.yaml
-kubectl apply -f k8s/jmeter-run.yaml
+kubectl apply -f k8s/jmeter-plan.yaml
+kubectl apply -f k8s/jmeter-job.yaml
 
 echo "Infrastructure deployed. Start the load test with:"
 echo "kubectl -n jmeter-live delete job jmeter-load --ignore-not-found"
-echo "kubectl -n jmeter-live create -f k8s/jmeter-run.yaml"
+echo "kubectl -n jmeter-live create -f k8s/jmeter-job.yaml"

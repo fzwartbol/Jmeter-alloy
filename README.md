@@ -38,6 +38,8 @@ The project intentionally does **not** use InfluxDB or Prometheus for JMeter res
 kubectl apply -f k8s/
 ```
 
+Or run `./deploy.sh`, which applies the manifests in dependency order and prints the commands to start a test run.
+
 Wait for the infrastructure:
 
 ```bash
@@ -47,7 +49,8 @@ kubectl -n jmeter-live get pods
 Start a test:
 
 ```bash
-kubectl -n jmeter-live create -f k8s/jmeter/job.yaml
+kubectl -n jmeter-live delete job jmeter-load --ignore-not-found
+kubectl -n jmeter-live create -f k8s/jmeter-job.yaml
 ```
 
 Watch it:

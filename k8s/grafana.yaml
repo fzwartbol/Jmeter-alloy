@@ -9,6 +9,7 @@ data:
     datasources:
       - name: Loki
         type: loki
+        uid: loki
         access: proxy
         url: http://loki:3100
         isDefault: true
@@ -45,10 +46,10 @@ data:
       "refresh": "5s",
       "time": {"from": "now-5m", "to": "now"},
       "panels": [
-        {"type":"timeseries","title":"Requests/sec","gridPos":{"h":8,"w":12,"x":0,"y":0},"datasource":{"type":"loki","uid":"${DS_LOKI}"},"targets":[{"refId":"A","expr":"sum by (label) (rate({job=\"jmeter\"}[30s]))","queryType":"range"}]},
-        {"type":"timeseries","title":"Error rate %","gridPos":{"h":8,"w":12,"x":12,"y":0},"datasource":{"type":"loki","uid":"${DS_LOKI}"},"targets":[{"refId":"A","expr":"sum(rate({job=\"jmeter\", success=\"false\"}[30s])) / sum(rate({job=\"jmeter\"}[30s])) * 100","queryType":"range"}]},
-        {"type":"timeseries","title":"P95 response time (ms)","gridPos":{"h":8,"w":12,"x":0,"y":8},"datasource":{"type":"loki","uid":"${DS_LOKI}"},"targets":[{"refId":"A","expr":"quantile_over_time(0.95, {job=\"jmeter\"} | unwrap elapsed [30s])","queryType":"range"}]},
-        {"type":"timeseries","title":"P99 response time (ms)","gridPos":{"h":8,"w":12,"x":12,"y":8},"datasource":{"type":"loki","uid":"${DS_LOKI}"},"targets":[{"refId":"A","expr":"quantile_over_time(0.99, {job=\"jmeter\"} | unwrap elapsed [30s])","queryType":"range"}]}
+        {"type":"timeseries","title":"Requests/sec","gridPos":{"h":8,"w":12,"x":0,"y":0},"datasource":{"type":"loki","uid":"loki"},"targets":[{"refId":"A","expr":"sum by (label) (rate({job=\"jmeter\"}[30s]))","queryType":"range"}]},
+        {"type":"timeseries","title":"Error rate %","gridPos":{"h":8,"w":12,"x":12,"y":0},"datasource":{"type":"loki","uid":"loki"},"targets":[{"refId":"A","expr":"sum(rate({job=\"jmeter\", success=\"false\"}[30s])) / sum(rate({job=\"jmeter\"}[30s])) * 100","queryType":"range"}]},
+        {"type":"timeseries","title":"P95 response time (ms)","gridPos":{"h":8,"w":12,"x":0,"y":8},"datasource":{"type":"loki","uid":"loki"},"targets":[{"refId":"A","expr":"quantile_over_time(0.95, {job=\"jmeter\"} | unwrap elapsed [30s])","queryType":"range"}]},
+        {"type":"timeseries","title":"P99 response time (ms)","gridPos":{"h":8,"w":12,"x":12,"y":8},"datasource":{"type":"loki","uid":"loki"},"targets":[{"refId":"A","expr":"quantile_over_time(0.99, {job=\"jmeter\"} | unwrap elapsed [30s])","queryType":"range"}]}
       ],
       "templating":{"list":[]}
     }

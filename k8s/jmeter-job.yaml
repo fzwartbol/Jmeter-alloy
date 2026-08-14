@@ -33,7 +33,7 @@ spec:
             - -q
             - /config/user.properties
             - -t
-            - /config/test-plan.jmx
+            - /plan/test-plan.jmx
             - -JTARGET_HOST=test-app
             - -l
             - /results/results.jtl
@@ -42,9 +42,14 @@ spec:
               mountPath: /results
             - name: config
               mountPath: /config
+            - name: plan
+              mountPath: /plan
       volumes:
         - name: results
           emptyDir: {}
         - name: config
           configMap:
             name: jmeter-config
+        - name: plan
+          configMap:
+            name: jmeter-plan
